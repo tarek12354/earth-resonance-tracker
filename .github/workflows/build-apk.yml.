@@ -1,41 +1,41 @@
-name: Build ERT-THA APK
-
+name: Build React Native Android APK
 on:
   push:
-    branches:
-      - '*'
+    branches: [ main ]
   workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: 18 # React Native يفضل غالباً نسخة 18 أو 20 مستقرة
 
-      - name: Install dependencies
-        run: npm install
-
-      - name: Add Android platform (Capacitor)
+      - name: Install Dependencies
         run: |
-          npx cap add android || echo "Android platform already added"
-          npm run build
-          npx cap sync
+          npm install --force
+          # تثبيت المكتبات الحساسة للبلوتوث والملفات
+          npm install react-native-ble-plx react-native-fs buffer --force
 
-      - name: Build APK
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Build Android APK
         run: |
-          chmod +x android/gradlew
           cd android
-          ./gradlew assembleRelease --no-daemon
+          chmod +x gradlew
+          ./gradlew assembleDebug
 
       - name: Upload APK
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
-          name: ERT-THA-APK
-          path: android/app/build/outputs/apk/release/app-release.apk
+          name: ERT-THA-Advanced
+          path: android/app/build/outputs/apk/debug/app-debug.apk
