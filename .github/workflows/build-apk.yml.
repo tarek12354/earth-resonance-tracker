@@ -1,4 +1,4 @@
-name: Build React Native Android APK
+name: Build Android APK
 on:
   push:
     branches: [ main ]
@@ -14,13 +14,15 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 18 # React Native يفضل غالباً نسخة 18 أو 20 مستقرة
+          node-version: 22 # ضروري جداً لتجنب خطأ Capacitor CLI
 
       - name: Install Dependencies
         run: |
           npm install --force
-          # تثبيت المكتبات الحساسة للبلوتوث والملفات
-          npm install react-native-ble-plx react-native-fs buffer --force
+          npm install @capacitor/android @capacitor/core @capacitor/cli buffer --force
+
+      - name: Web Build
+        run: npm run build
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -28,7 +30,12 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Build Android APK
+      - name: Initialize Android Platform
+        run: |
+          npx cap add android || true
+          npx cap sync android
+
+      - name: Build APK
         run: |
           cd android
           chmod +x gradlew
@@ -37,5 +44,5 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: ERT-THA-Advanced
+          name: ERT-THA-App
           path: android/app/build/outputs/apk/debug/app-debug.apk
