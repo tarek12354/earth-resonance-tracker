@@ -1,0 +1,9 @@
+{
+  "appId": "app.lovable.6f2e0cd00baf4764a151aca1c497550e",
+  "appName": "ERT-THA",
+  "webDir": "dist",
+  "server": {
+    "url": "https://6f2e0cd0-0baf-4764-a151-aca1c497550e.lovableproject.com?forceHideBadge=true",
+    "cleartext": true
+  }
+}
