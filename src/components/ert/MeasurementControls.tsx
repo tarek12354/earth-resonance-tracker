@@ -1,4 +1,4 @@
-import { Play, SkipForward, RotateCcw, Square } from 'lucide-react';
+import { Play, SkipForward, RotateCcw, Square, TestTube } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 interface MeasurementControlsProps {
@@ -10,6 +10,7 @@ interface MeasurementControlsProps {
   onNext: () => void;
   onRepeat: () => void;
   onStop: () => void;
+  onSimulate?: () => void;
 }
 
 export function MeasurementControls({
@@ -21,6 +22,7 @@ export function MeasurementControls({
   onNext,
   onRepeat,
   onStop,
+  onSimulate,
 }: MeasurementControlsProps) {
   return (
     <div className="space-y-4">
@@ -47,11 +49,10 @@ export function MeasurementControls({
         <Button
           onClick={onNext}
           disabled={!hasPendingReading}
-          className="h-14 text-base font-semibold"
-          variant="secondary"
+          className="h-14 text-base font-semibold bg-green-600 hover:bg-green-700 text-white"
         >
           <SkipForward className="mr-2 h-5 w-5" />
-          NEXT
+          Suivante
         </Button>
 
         <Button
@@ -74,6 +75,18 @@ export function MeasurementControls({
           STOP
         </Button>
       </div>
+
+      {/* Test button for manual simulation */}
+      {onSimulate && (
+        <Button
+          onClick={onSimulate}
+          className="w-full h-12 text-base font-semibold"
+          variant="outline"
+        >
+          <TestTube className="mr-2 h-5 w-5" />
+          Test: Simuler une mesure
+        </Button>
+      )}
     </div>
   );
 }
