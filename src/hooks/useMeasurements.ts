@@ -25,7 +25,7 @@ const CONFIG_KEY = 'ert-tha-config';
 export function useMeasurements() {
   const [measurements, setMeasurements] = useState<Measurement[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [pendingReading, setPendingReading] = useState<Omit<Measurement, 'id' | 'timestamp'> | null>(null);
+  const [liveReading, setLiveReading] = useState<Omit<Measurement, 'id' | 'timestamp'> | null>(null);
   const [config, setConfig] = useState<SurveyConfig>({
     arrayType: 'Dipole-Dipole',
     electrodeSpacing: 1.0,
@@ -83,23 +83,24 @@ export function useMeasurements() {
   const handleIncomingData = useCallback((data: string) => {
     const parsed = parseMeasurement(data);
     if (parsed) {
-      setPendingReading(parsed);
+      setLiveReading(parsed);
     }
   }, [parseMeasurement]);
 
-  const acceptMeasurement = useCallback(() => {
-    if (!pendingReading) return;
+  const recordCurrentReading = useCallback(() => {
+    if (!liveReading) return false;
 
     const newMeasurement: Measurement = {
-      ...pendingReading,
+      ...liveReading,
       id: Date.now(),
       timestamp: new Date(),
     };
 
     setMeasurements(prev => [...prev, newMeasurement]);
     setCurrentIndex(prev => prev + 1);
-    setPendingReading(null);
-  }, [pendingReading]);
+    setLiveReading(null);
+    return true;
+  }, [liveReading]);
 
   const deleteMeasurement = useCallback((id: number) => {
     setMeasurements(prev => prev.filter(m => m.id !== id));
@@ -109,7 +110,7 @@ export function useMeasurements() {
   const clearAllMeasurements = useCallback(() => {
     setMeasurements([]);
     setCurrentIndex(0);
-    setPendingReading(null);
+    setLiveReading(null);
   }, []);
 
   const updateConfig = useCallback((updates: Partial<SurveyConfig>) => {
@@ -184,10 +185,10 @@ export function useMeasurements() {
   return {
     measurements,
     currentIndex,
-    pendingReading,
+    liveReading,
     config,
     handleIncomingData,
-    acceptMeasurement,
+    recordCurrentReading,
     deleteMeasurement,
     clearAllMeasurements,
     updateConfig,

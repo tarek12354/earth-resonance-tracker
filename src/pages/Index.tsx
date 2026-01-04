@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useRef, useState, useEffect } from 'react';
 import { Zap, Moon, Sun } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,16 +13,20 @@ import { MeasurementsTable } from '@/components/ert/MeasurementsTable';
 import { ExportButtons } from '@/components/ert/ExportButtons';
 import { useTheme } from '@/hooks/useTheme';
 
+const AUTO_REQUEST_INTERVAL = 1500; // 1.5 seconds
+
 const Index = () => {
   const { theme, toggleTheme } = useTheme();
+  const [isAutoRequesting, setIsAutoRequesting] = useState(false);
+  const autoRequestRef = useRef<NodeJS.Timeout | null>(null);
   
   const {
     measurements,
     currentIndex,
-    pendingReading,
+    liveReading,
     config,
     handleIncomingData,
-    acceptMeasurement,
+    recordCurrentReading,
     deleteMeasurement,
     clearAllMeasurements,
     updateConfig,
@@ -39,26 +43,71 @@ const Index = () => {
     connect,
     disconnect,
     sendCommand,
-    liveReading,
     simulateData,
   } = useBluetooth(handleIncomingData);
 
+  // Cleanup interval on unmount
+  useEffect(() => {
+    return () => {
+      if (autoRequestRef.current) {
+        clearInterval(autoRequestRef.current);
+      }
+    };
+  }, []);
+
+  // Start automatic NEXT requests every 1.5s
+  const startAutoRequest = useCallback(() => {
+    if (autoRequestRef.current) {
+      clearInterval(autoRequestRef.current);
+    }
+
+    setIsAutoRequesting(true);
+
+    // Send first NEXT immediately
+    sendCommand('NEXT');
+
+    // Then continue every 1.5s
+    autoRequestRef.current = setInterval(() => {
+      sendCommand('NEXT');
+    }, AUTO_REQUEST_INTERVAL);
+  }, [sendCommand]);
+
+  // Stop automatic requests
+  const stopAutoRequest = useCallback(() => {
+    if (autoRequestRef.current) {
+      clearInterval(autoRequestRef.current);
+      autoRequestRef.current = null;
+    }
+    setIsAutoRequesting(false);
+  }, []);
+
+  // START button: begin auto-requesting
   const handleStart = useCallback(() => {
-    clearAllMeasurements();
-    sendCommand('START');
-  }, [clearAllMeasurements, sendCommand]);
+    if (isConnected) {
+      startAutoRequest();
+    }
+  }, [isConnected, startAutoRequest]);
 
+  // SUIVANTE (Next) button: record current reading and continue
   const handleNext = useCallback(() => {
-    acceptMeasurement();
-  }, [acceptMeasurement]);
+    if (liveReading) {
+      recordCurrentReading();
+      // Auto-request continues for next measurement point
+    }
+  }, [liveReading, recordCurrentReading]);
 
+  // REPEAT button: restart auto-requesting if stopped
   const handleRepeat = useCallback(() => {
-    sendCommand('REPEAT');
-  }, [sendCommand]);
+    if (isConnected && !isAutoRequesting) {
+      startAutoRequest();
+    }
+  }, [isConnected, isAutoRequesting, startAutoRequest]);
 
+  // STOP button: stop auto-requesting
   const handleStop = useCallback(() => {
+    stopAutoRequest();
     sendCommand('STOP');
-  }, [sendCommand]);
+  }, [stopAutoRequest, sendCommand]);
 
   // Simulate test data for manual testing without ESP32
   const handleSimulate = useCallback(() => {
@@ -141,14 +190,15 @@ const Index = () => {
         </Card>
 
         {/* Live Reading */}
-        <LiveReading reading={liveReading} pendingReading={pendingReading} />
+        <LiveReading liveReading={liveReading} isAutoRequesting={isAutoRequesting} />
 
         {/* Controls */}
         <Card>
           <CardContent className="pt-6">
             <MeasurementControls
               isConnected={isConnected}
-              hasPendingReading={!!pendingReading}
+              isAutoRequesting={isAutoRequesting}
+              hasLiveReading={!!liveReading}
               currentIndex={currentIndex}
               totalMeasurements={measurements.length}
               onStart={handleStart}

@@ -1,9 +1,11 @@
 import { Play, SkipForward, RotateCcw, Square, TestTube } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 
 interface MeasurementControlsProps {
   isConnected: boolean;
-  hasPendingReading: boolean;
+  isAutoRequesting: boolean;
+  hasLiveReading: boolean;
   currentIndex: number;
   totalMeasurements: number;
   onStart: () => void;
@@ -15,7 +17,8 @@ interface MeasurementControlsProps {
 
 export function MeasurementControls({
   isConnected,
-  hasPendingReading,
+  isAutoRequesting,
+  hasLiveReading,
   currentIndex,
   totalMeasurements,
   onStart,
@@ -30,16 +33,27 @@ export function MeasurementControls({
         <p className="text-sm font-medium text-muted-foreground">
           Contrôles de mesure
         </p>
-        <p className="rounded-full bg-secondary px-3 py-1 text-sm font-semibold">
-          {currentIndex} / {totalMeasurements}
-        </p>
+        <div className="flex items-center gap-2">
+          {isAutoRequesting && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-green-500/20 px-2 py-1 text-xs font-medium text-green-600 dark:text-green-400">
+              <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+              En cours
+            </span>
+          )}
+          <p className="rounded-full bg-secondary px-3 py-1 text-sm font-semibold">
+            {currentIndex} / {totalMeasurements}
+          </p>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Button
           onClick={onStart}
-          disabled={!isConnected}
-          className="h-14 text-base font-semibold"
+          disabled={!isConnected || isAutoRequesting}
+          className={cn(
+            "h-14 text-base font-semibold",
+            isAutoRequesting && "opacity-50"
+          )}
           variant="default"
         >
           <Play className="mr-2 h-5 w-5" />
@@ -48,7 +62,7 @@ export function MeasurementControls({
 
         <Button
           onClick={onNext}
-          disabled={!hasPendingReading}
+          disabled={!hasLiveReading}
           className="h-14 text-base font-semibold bg-green-600 hover:bg-green-700 text-white"
         >
           <SkipForward className="mr-2 h-5 w-5" />
@@ -57,7 +71,7 @@ export function MeasurementControls({
 
         <Button
           onClick={onRepeat}
-          disabled={!isConnected}
+          disabled={!isConnected || isAutoRequesting}
           className="h-14 text-base font-semibold"
           variant="outline"
         >
@@ -67,7 +81,7 @@ export function MeasurementControls({
 
         <Button
           onClick={onStop}
-          disabled={!isConnected}
+          disabled={!isAutoRequesting}
           className="h-14 text-base font-semibold"
           variant="destructive"
         >
