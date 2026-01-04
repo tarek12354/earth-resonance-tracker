@@ -2,10 +2,6 @@
   "appId": "app.lovable.ertapp",
   "appName": "ERT App",
   "webDir": "dist",
-  "server": {
-    "url": "https://6f2e0cd0-0baf-4764-a151-aca1c497550e.lovableproject.com?forceHideBadge=true",
-    "cleartext": true
-  },
   "android": {
     "allowMixedContent": true
   },
