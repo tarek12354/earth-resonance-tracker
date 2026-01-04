@@ -40,6 +40,7 @@ const Index = () => {
     disconnect,
     sendCommand,
     liveReading,
+    simulateData,
   } = useBluetooth(handleIncomingData);
 
   const handleStart = useCallback(() => {
@@ -58,6 +59,17 @@ const Index = () => {
   const handleStop = useCallback(() => {
     sendCommand('STOP');
   }, [sendCommand]);
+
+  // Simulate test data for manual testing without ESP32
+  const handleSimulate = useCallback(() => {
+    const testA = Math.floor(Math.random() * 10) + 1;
+    const testB = testA + 1;
+    const testM = testB + 1;
+    const testN = testM + 1;
+    const testRa = (Math.random() * 100 + 10).toFixed(2);
+    const testData = `${testA},${testB},${testM},${testN},${testRa}`;
+    simulateData(testData);
+  }, [simulateData]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -143,6 +155,7 @@ const Index = () => {
               onNext={handleNext}
               onRepeat={handleRepeat}
               onStop={handleStop}
+              onSimulate={handleSimulate}
             />
           </CardContent>
         </Card>
