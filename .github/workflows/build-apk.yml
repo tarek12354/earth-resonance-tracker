@@ -2,40 +2,48 @@ name: Build ERT-THA APK
 
 on:
   push:
-    branches:
-      - '*'
+    branches: [ main ]
   workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22' # لضمان توافق Capacitor CLI
 
       - name: Install dependencies
-        run: npm install
-
-      - name: Add Android platform (Capacitor)
         run: |
-          npx cap add android || echo "Android platform already added"
-          npm run build
-          npx cap sync
+          npm install --force
+          npm install @capacitor/android @capacitor/core @capacitor/cli --force
+
+      - name: Build Web Assets
+        run: npm run build # سينشئ مجلد dist البرمجي
+
+      - name: Create Android Project
+        run: |
+          npx cap add android || true 
+          npx cap sync android # سينشئ مجلد android المفقود ويضع فيه كود الويب
+
+      - name: Setup Java JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
 
       - name: Build APK
         run: |
-          chmod +x android/gradlew
           cd android
-          ./gradlew assembleRelease --no-daemon
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
 
       - name: Upload APK
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
-          name: ERT-THA-APK
-          path: android/app/build/outputs/apk/release/app-release.apk
+          name: ERT-THA-App
+          path: android/app/build/outputs/apk/debug/app-debug.apk
