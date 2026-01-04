@@ -15,10 +15,15 @@ jobs:
         with:
           flutter-version: '3.38.5'
 
-      - run: flutter pub get
-      - run: flutter build apk --release
+      - name: Install dependencies
+        run: flutter pub get
+        working-directory: my_ert_app
+
+      - name: Build APK
+        run: flutter build apk --release
+        working-directory: my_ert_app
 
       - uses: actions/upload-artifact@v4
         with:
           name: app-release
-          path: build/app/outputs/flutter-apk/app-release.apk
+          path: my_ert_app/build/app/outputs/flutter-apk/app-release.apk
