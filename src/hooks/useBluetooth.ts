@@ -1,4 +1,6 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
+import { BleClient, numberToUUID } from '@capacitor-community/bluetooth-le';
+import { Capacitor } from '@capacitor/core';
 
 export interface Measurement {
   id: number;
@@ -14,6 +16,7 @@ interface BluetoothState {
   isConnected: boolean;
   isConnecting: boolean;
   deviceName: string | null;
+  deviceId: string | null;
   error: string | null;
 }
 
@@ -37,17 +40,38 @@ export function useBluetooth(onMeasurement: (data: string) => void): UseBluetoot
     isConnected: false,
     isConnecting: false,
     deviceName: null,
+    deviceId: null,
     error: null,
   });
   const [liveReading, setLiveReading] = useState('');
+  const [isSupported, setIsSupported] = useState(true);
   
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const deviceRef = useRef<any>(null);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const characteristicRef = useRef<any>(null);
   const dataBufferRef = useRef<string>('');
+  const isInitializedRef = useRef(false);
 
-  const isSupported = typeof navigator !== 'undefined' && 'bluetooth' in navigator;
+  // Initialize BLE on mount
+  useEffect(() => {
+    const initBle = async () => {
+      try {
+        await BleClient.initialize();
+        isInitializedRef.current = true;
+        console.log('BLE initialized successfully');
+      } catch (error) {
+        console.error('BLE initialization error:', error);
+        setIsSupported(false);
+        setState(s => ({ ...s, error: 'Bluetooth LE non disponible sur cet appareil' }));
+      }
+    };
+
+    initBle();
+
+    return () => {
+      // Cleanup on unmount
+      if (state.deviceId && state.isConnected) {
+        BleClient.disconnect(state.deviceId).catch(console.error);
+      }
+    };
+  }, []);
 
   // Simulate incoming data for testing without hardware
   const simulateData = useCallback((data: string) => {
@@ -55,15 +79,8 @@ export function useBluetooth(onMeasurement: (data: string) => void): UseBluetoot
     onMeasurement(data);
   }, [onMeasurement]);
 
-  const handleNotification = useCallback((event: Event) => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const target = event.target as any;
-    const value = target.value;
-    if (!value) return;
-
-    const decoder = new TextDecoder('utf-8');
-    const chunk = decoder.decode(value);
-    
+  // Process incoming BLE data
+  const processData = useCallback((chunk: string) => {
     // Buffer incoming data (ESP32 may send in chunks)
     dataBufferRef.current += chunk;
     
@@ -84,9 +101,40 @@ export function useBluetooth(onMeasurement: (data: string) => void): UseBluetoot
     });
   }, [onMeasurement]);
 
+  const requestPermissions = async (): Promise<boolean> => {
+    // Only request permissions on native platforms
+    if (Capacitor.getPlatform() === 'web') {
+      return true;
+    }
+
+    try {
+      // For Android 12+ (API 31+), we need BLUETOOTH_SCAN and BLUETOOTH_CONNECT
+      // The BleClient.initialize() should handle permission requests
+      // But we can also try to trigger the scan which will prompt for permissions
+      console.log('Requesting BLE permissions...');
+      
+      // Check if Bluetooth is enabled
+      const isEnabled = await BleClient.isEnabled();
+      if (!isEnabled) {
+        // Try to request enabling Bluetooth
+        try {
+          await BleClient.requestEnable();
+        } catch (e) {
+          console.log('User declined to enable Bluetooth');
+          return false;
+        }
+      }
+      
+      return true;
+    } catch (error) {
+      console.error('Permission request error:', error);
+      return false;
+    }
+  };
+
   const connect = useCallback(async () => {
-    if (!isSupported) {
-      setState(s => ({ ...s, error: 'Web Bluetooth non supporté. Utilisez Chrome sur Android ou PC.' }));
+    if (!isInitializedRef.current) {
+      setState(s => ({ ...s, error: 'BLE non initialisé. Veuillez réessayer.' }));
       return;
     }
 
@@ -94,88 +142,121 @@ export function useBluetooth(onMeasurement: (data: string) => void): UseBluetoot
     dataBufferRef.current = '';
 
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const nav = navigator as any;
-      
-      // Request device with flexible filtering
-      const device = await nav.bluetooth.requestDevice({
-        filters: [
-          { namePrefix: DEVICE_NAME_PREFIX },
-          { services: [ESP32_SERVICE_UUID] }
-        ],
+      // Request permissions first
+      const hasPermissions = await requestPermissions();
+      if (!hasPermissions) {
+        setState(s => ({ 
+          ...s, 
+          isConnecting: false, 
+          error: 'Permissions Bluetooth refusées. Activez-les dans les paramètres.' 
+        }));
+        return;
+      }
+
+      console.log('Scanning for ESP32 devices...');
+
+      // Request device with name filter
+      const device = await BleClient.requestDevice({
+        namePrefix: DEVICE_NAME_PREFIX,
         optionalServices: [ESP32_SERVICE_UUID],
       });
 
-      console.log('Device found:', device.name);
-      deviceRef.current = device;
+      console.log('Device found:', device.name, device.deviceId);
 
-      device.addEventListener('gattserverdisconnected', () => {
-        console.log('Device disconnected');
-        setState(s => ({ ...s, isConnected: false, deviceName: null }));
-        characteristicRef.current = null;
+      // Connect to the device
+      await BleClient.connect(device.deviceId, (deviceId) => {
+        console.log('Device disconnected:', deviceId);
+        setState(s => ({ 
+          ...s, 
+          isConnected: false, 
+          deviceName: null,
+          deviceId: null 
+        }));
         dataBufferRef.current = '';
       });
 
-      const server = await device.gatt?.connect();
-      if (!server) throw new Error('Impossible de se connecter au serveur GATT');
-      console.log('GATT server connected');
+      console.log('Connected to device');
 
-      const service = await server.getPrimaryService(ESP32_SERVICE_UUID);
-      console.log('Service found');
-      
-      const characteristic = await service.getCharacteristic(ESP32_CHARACTERISTIC_UUID);
-      console.log('Characteristic found');
-      
-      characteristicRef.current = characteristic;
+      // Start notifications
+      await BleClient.startNotifications(
+        device.deviceId,
+        ESP32_SERVICE_UUID,
+        ESP32_CHARACTERISTIC_UUID,
+        (value) => {
+          // Convert DataView to string
+          const decoder = new TextDecoder('utf-8');
+          const chunk = decoder.decode(value);
+          processData(chunk);
+        }
+      );
 
-      await characteristic.startNotifications();
       console.log('Notifications started');
-      
-      characteristic.addEventListener('characteristicvaluechanged', handleNotification);
 
       setState({
         isConnected: true,
         isConnecting: false,
         deviceName: device.name || 'ESP32',
+        deviceId: device.deviceId,
         error: null,
       });
+
     } catch (error) {
       console.error('BLE Connection error:', error);
       const message = error instanceof Error ? error.message : 'Erreur de connexion';
+      
+      // Don't show error if user cancelled
+      const isCancelled = message.includes('cancel') || 
+                          message.includes('Cancel') ||
+                          message.includes('User denied');
+      
       setState(s => ({ 
         ...s, 
         isConnecting: false, 
-        error: message.includes('cancelled') || message.includes('User cancelled') 
-          ? null 
-          : `Erreur: ${message}` 
+        error: isCancelled ? null : `Erreur: ${message}` 
       }));
     }
-  }, [isSupported, handleNotification]);
+  }, [processData]);
 
-  const disconnect = useCallback(() => {
-    if (deviceRef.current?.gatt?.connected) {
-      deviceRef.current.gatt.disconnect();
+  const disconnect = useCallback(async () => {
+    if (state.deviceId) {
+      try {
+        await BleClient.stopNotifications(
+          state.deviceId,
+          ESP32_SERVICE_UUID,
+          ESP32_CHARACTERISTIC_UUID
+        );
+        await BleClient.disconnect(state.deviceId);
+      } catch (error) {
+        console.error('Disconnect error:', error);
+      }
     }
-    deviceRef.current = null;
-    characteristicRef.current = null;
+    
     setLiveReading('');
+    dataBufferRef.current = '';
     setState({
       isConnected: false,
       isConnecting: false,
       deviceName: null,
+      deviceId: null,
       error: null,
     });
-  }, []);
+  }, [state.deviceId]);
 
   const sendCommand = useCallback(async (command: string) => {
-    if (!characteristicRef.current) {
+    if (!state.deviceId || !state.isConnected) {
       throw new Error('Non connecté');
     }
 
     const encoder = new TextEncoder();
     const data = encoder.encode(command + '\n');
-    await characteristicRef.current.writeValue(data);
-  }, []);
+    
+    await BleClient.write(
+      state.deviceId,
+      ESP32_SERVICE_UUID,
+      ESP32_CHARACTERISTIC_UUID,
+      new DataView(data.buffer)
+    );
+  }, [state.deviceId, state.isConnected]);
 
   return {
     ...state,

@@ -1,6 +1,7 @@
-import { Bluetooth, BluetoothOff, Loader2 } from 'lucide-react';
+import { Bluetooth, BluetoothOff, Loader2, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { Capacitor } from '@capacitor/core';
 
 interface ConnectionStatusProps {
   isConnected: boolean;
@@ -21,14 +22,19 @@ export function ConnectionStatus({
   onConnect,
   onDisconnect,
 }: ConnectionStatusProps) {
+  const isNative = Capacitor.isNativePlatform();
+  
   if (!isSupported) {
     return (
       <div className="flex items-center gap-3 rounded-lg bg-destructive/10 p-3 text-destructive">
         <BluetoothOff className="h-5 w-5" />
         <div>
-          <p className="font-medium">Bluetooth non supporté</p>
+          <p className="font-medium">Bluetooth LE non disponible</p>
           <p className="text-sm opacity-80">
-            Utilisez Chrome/Edge sur Android ou Desktop
+            {isNative 
+              ? 'Vérifiez que le Bluetooth est activé dans les paramètres'
+              : 'Utilisez l\'application Android pour le Bluetooth natif'
+            }
           </p>
         </div>
       </div>
