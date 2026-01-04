@@ -1,34 +1,41 @@
-name: Build APK
+name: Build ERT-THA APK
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - '*'
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-      - uses: subosito/flutter-action@v2
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
         with:
-          flutter-version: '3.38.5'
-
-      - name: Find Flutter project
-        run: |
-          PROJECT_DIR=$(find . -name pubspec.yaml -exec dirname {} \; | head -n 1)
-          echo "PROJECT_DIR=$PROJECT_DIR" >> $GITHUB_ENV
+          node-version: '20'
 
       - name: Install dependencies
-        run: flutter pub get
-        working-directory: ${{ env.PROJECT_DIR }}
+        run: npm install
+
+      - name: Add Android platform (Capacitor)
+        run: |
+          npx cap add android || echo "Android platform already added"
+          npm run build
+          npx cap sync
 
       - name: Build APK
-        run: flutter build apk --release
-        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          chmod +x android/gradlew
+          cd android
+          ./gradlew assembleRelease --no-daemon
 
-      - uses: actions/upload-artifact@v4
+      - name: Upload APK
+        uses: actions/upload-artifact@v3
         with:
-          name: app-release
-          path: ${{ env.PROJECT_DIR }}/build/app/outputs/flutter-apk/app-release.apk
+          name: ERT-THA-APK
+          path: android/app/build/outputs/apk/release/app-release.apk
