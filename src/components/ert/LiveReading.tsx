@@ -1,66 +1,88 @@
-import { Activity } from 'lucide-react';
+import { Activity, Radio } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface LiveReadingProps {
-  reading: string;
-  pendingReading: {
+  liveReading: {
     a: number;
     b: number;
     m: number;
     n: number;
     ra: number;
   } | null;
+  isAutoRequesting: boolean;
 }
 
-export function LiveReading({ reading, pendingReading }: LiveReadingProps) {
-  const hasReading = reading || pendingReading;
-
+export function LiveReading({ liveReading, isAutoRequesting }: LiveReadingProps) {
   return (
     <div
       className={cn(
         'relative overflow-hidden rounded-xl border-2 p-6 transition-all',
-        hasReading
+        liveReading
           ? 'border-primary bg-primary/5'
-          : 'border-border bg-muted/30'
+          : isAutoRequesting
+            ? 'border-yellow-500 bg-yellow-500/5'
+            : 'border-border bg-muted/30'
       )}
     >
       <div className="flex items-center gap-3">
         <div
           className={cn(
             'flex h-10 w-10 items-center justify-center rounded-full',
-            hasReading ? 'bg-primary text-primary-foreground' : 'bg-muted'
+            liveReading 
+              ? 'bg-primary text-primary-foreground' 
+              : isAutoRequesting
+                ? 'bg-yellow-500 text-white'
+                : 'bg-muted'
           )}
         >
-          <Activity className="h-5 w-5" />
+          {isAutoRequesting ? (
+            <Radio className="h-5 w-5 animate-pulse" />
+          ) : (
+            <Activity className="h-5 w-5" />
+          )}
         </div>
 
         <div className="flex-1">
-          <p className="text-sm font-medium text-muted-foreground">
-            Lecture en direct
-          </p>
-          {pendingReading ? (
+          <div className="flex items-center gap-2">
+            <p className="text-sm font-medium text-muted-foreground">
+              Lecture en direct
+            </p>
+            {isAutoRequesting && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-yellow-500/20 px-2 py-0.5 text-xs font-medium text-yellow-600 dark:text-yellow-400">
+                <span className="h-1.5 w-1.5 rounded-full bg-yellow-500 animate-pulse" />
+                Auto (1.5s)
+              </span>
+            )}
+          </div>
+          
+          {liveReading ? (
             <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-lg font-semibold">
-              <span>A={pendingReading.a}</span>
-              <span>B={pendingReading.b}</span>
-              <span>M={pendingReading.m}</span>
-              <span>N={pendingReading.n}</span>
+              <span>A={liveReading.a}</span>
+              <span>B={liveReading.b}</span>
+              <span>M={liveReading.m}</span>
+              <span>N={liveReading.n}</span>
               <span className="text-primary">
-                ρa={pendingReading.ra.toFixed(2)} Ω·m
+                ρa={liveReading.ra.toFixed(2)} Ω·m
               </span>
             </div>
-          ) : reading ? (
-            <p className="mt-1 text-lg font-semibold">{reading}</p>
+          ) : isAutoRequesting ? (
+            <p className="mt-1 text-lg text-yellow-600 dark:text-yellow-400">
+              Interrogation ESP32...
+            </p>
           ) : (
             <p className="mt-1 text-lg text-muted-foreground">
-              En attente de données...
+              Cliquez START pour commencer
             </p>
           )}
         </div>
       </div>
 
-      {hasReading && (
+      {(liveReading || isAutoRequesting) && (
         <div className="absolute bottom-0 left-0 h-1 w-full">
-          <div className="h-full animate-pulse bg-primary" />
+          <div className={cn(
+            "h-full animate-pulse",
+            liveReading ? "bg-primary" : "bg-yellow-500"
+          )} />
         </div>
       )}
     </div>
