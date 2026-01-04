@@ -15,15 +15,20 @@ jobs:
         with:
           flutter-version: '3.38.5'
 
+      - name: Find Flutter project
+        run: |
+          PROJECT_DIR=$(find . -name pubspec.yaml -exec dirname {} \; | head -n 1)
+          echo "PROJECT_DIR=$PROJECT_DIR" >> $GITHUB_ENV
+
       - name: Install dependencies
         run: flutter pub get
-        working-directory: my_ert_app
+        working-directory: ${{ env.PROJECT_DIR }}
 
       - name: Build APK
         run: flutter build apk --release
-        working-directory: my_ert_app
+        working-directory: ${{ env.PROJECT_DIR }}
 
       - uses: actions/upload-artifact@v4
         with:
           name: app-release
-          path: my_ert_app/build/app/outputs/flutter-apk/app-release.apk
+          path: ${{ env.PROJECT_DIR }}/build/app/outputs/flutter-apk/app-release.apk
