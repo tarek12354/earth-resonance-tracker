@@ -1,4 +1,4 @@
-name: Build ERT-THA (Full Bluetooth Fix)
+name: Build ERT-THA (Bluetooth Permissions Fix)
 on:
   push:
     branches: [ main ]
@@ -19,8 +19,7 @@ jobs:
       - name: Install dependencies
         run: |
           npm install --force
-          # تثبيت المكتبة التي تحول البلوتوث من ويب إلى أندرويد
-          npm install @capacitor-community/bluetooth-le --force
+          npm install @capacitor-community/bluetooth-le @capacitor/android --force
 
       - name: Build Web Assets
         run: npm run build
@@ -33,9 +32,9 @@ jobs:
 
       - name: Create Android Project
         run: |
-          npx cap add android || true
-          # حقن الأذونات الضرورية في نظام أندرويد
-          sed -i '/<application/i \    <uses-permission android:name="android.permission.BLUETOOTH" />\n    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />\n    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />\n    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />\n    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />' android/app/src/main/AndroidManifest.xml
+          npx cap add android || true 
+          # حقن أذونات الأجهزة القريبة والموقع التي ظهرت ناقصة في صورتك
+          sed -i '/<application/i \    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />\n    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />\n    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />\n    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />' android/app/src/main/AndroidManifest.xml
           npx cap sync android
           npx cap update android
 
@@ -48,5 +47,5 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: ERT-THA-Final-Fix
+          name: ERT-THA-Permission-Fixed
           path: android/app/build/outputs/apk/debug/app-debug.apk
