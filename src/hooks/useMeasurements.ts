@@ -1,4 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
+import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
+import { Share } from '@capacitor/share';
+import { Capacitor } from '@capacitor/core';
 
 export interface Measurement {
   id: number;
@@ -158,7 +161,7 @@ export function useMeasurements() {
     return lines.join('\n');
   }, [measurements]);
 
-  const downloadFile = useCallback((content: string, filename: string, mimeType: string) => {
+  const downloadFileWeb = useCallback((content: string, filename: string, mimeType: string) => {
     const blob = new Blob([content], { type: mimeType });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -170,17 +173,55 @@ export function useMeasurements() {
     URL.revokeObjectURL(url);
   }, []);
 
+  const downloadFileNative = useCallback(async (content: string, filename: string, mimeType: string) => {
+    try {
+      // Write file to Documents directory
+      const result = await Filesystem.writeFile({
+        path: filename,
+        data: content,
+        directory: Directory.Documents,
+        encoding: Encoding.UTF8,
+      });
+
+      console.log('File written to:', result.uri);
+
+      // Open native share sheet
+      await Share.share({
+        title: filename,
+        text: `ERT Survey Data: ${filename}`,
+        url: result.uri,
+        dialogTitle: 'Partager les données ERT',
+      });
+    } catch (error) {
+      console.error('Error exporting file:', error);
+      // Fallback to web download if native fails
+      downloadFileWeb(content, filename, mimeType);
+    }
+  }, [downloadFileWeb]);
+
   const exportDAT = useCallback(() => {
     const content = exportToDAT();
     const timestamp = new Date().toISOString().slice(0, 10);
-    downloadFile(content, `ERT-THA_${timestamp}.dat`, 'text/plain');
-  }, [exportToDAT, downloadFile]);
+    const filename = `ERT-THA_${timestamp}.dat`;
+    
+    if (Capacitor.isNativePlatform()) {
+      downloadFileNative(content, filename, 'text/plain');
+    } else {
+      downloadFileWeb(content, filename, 'text/plain');
+    }
+  }, [exportToDAT, downloadFileNative, downloadFileWeb]);
 
   const exportCSV = useCallback(() => {
     const content = exportToCSV();
     const timestamp = new Date().toISOString().slice(0, 10);
-    downloadFile(content, `ERT-THA_${timestamp}.csv`, 'text/csv');
-  }, [exportToCSV, downloadFile]);
+    const filename = `ERT-THA_${timestamp}.csv`;
+    
+    if (Capacitor.isNativePlatform()) {
+      downloadFileNative(content, filename, 'text/csv');
+    } else {
+      downloadFileWeb(content, filename, 'text/csv');
+    }
+  }, [exportToCSV, downloadFileNative, downloadFileWeb]);
 
   return {
     measurements,
