@@ -69,26 +69,23 @@ export function useMeasurements() {
     localStorage.setItem(CONFIG_KEY, JSON.stringify(config));
   }, [config]);
 
-  const parseMeasurement = useCallback((data: string): Omit<Measurement, 'id' | 'timestamp'> | null => {
-    const parts = data.split(',');
-    if (parts.length === 5) {
-      return {
-        a: parseInt(parts[0], 10),
-        b: parseInt(parts[1], 10),
-        m: parseInt(parts[2], 10),
-        n: parseInt(parts[3], 10),
-        ra: parseFloat(parts[4]),
-      };
-    }
-    return null;
-  }, []);
-
+  // Parse incoming data - now accepts simple resistance string like "120.5"
   const handleIncomingData = useCallback((data: string) => {
-    const parsed = parseMeasurement(data);
-    if (parsed) {
-      setLiveReading(parsed);
+    const trimmed = data.trim();
+    const resistanceValue = parseFloat(trimmed);
+    
+    if (!isNaN(resistanceValue)) {
+      // For simple resistance-only data, use placeholder electrode positions
+      // These will be updated when recording based on survey configuration
+      setLiveReading({
+        a: currentIndex + 1,
+        b: currentIndex + 2,
+        m: currentIndex + 3,
+        n: currentIndex + 4,
+        ra: resistanceValue,
+      });
     }
-  }, [parseMeasurement]);
+  }, [currentIndex]);
 
   const recordCurrentReading = useCallback(() => {
     if (!liveReading) return false;
@@ -173,29 +170,28 @@ export function useMeasurements() {
     URL.revokeObjectURL(url);
   }, []);
 
-  const downloadFileNative = useCallback(async (content: string, filename: string, mimeType: string) => {
+  const downloadFileNative = useCallback(async (content: string, filename: string, _mimeType: string) => {
     try {
-      // Write file to Documents directory
+      // Write file to Cache directory (more reliable for sharing on Android)
       const result = await Filesystem.writeFile({
         path: filename,
         data: content,
-        directory: Directory.Documents,
+        directory: Directory.Cache,
         encoding: Encoding.UTF8,
       });
 
       console.log('File written to:', result.uri);
 
-      // Open native share sheet
+      // Open native share sheet immediately
       await Share.share({
         title: filename,
-        text: `ERT Survey Data: ${filename}`,
         url: result.uri,
         dialogTitle: 'Partager les données ERT',
       });
     } catch (error) {
       console.error('Error exporting file:', error);
       // Fallback to web download if native fails
-      downloadFileWeb(content, filename, mimeType);
+      downloadFileWeb(content, filename, _mimeType);
     }
   }, [downloadFileWeb]);
 
