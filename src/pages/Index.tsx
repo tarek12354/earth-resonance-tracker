@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState, useEffect } from 'react';
+import { useCallback, useState, useEffect } from 'react';
 import { Zap, Moon, Sun } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,12 +13,9 @@ import { MeasurementsTable } from '@/components/ert/MeasurementsTable';
 import { ExportButtons } from '@/components/ert/ExportButtons';
 import { useTheme } from '@/hooks/useTheme';
 
-const AUTO_REQUEST_INTERVAL = 1500; // 1.5 seconds
-
 const Index = () => {
   const { theme, toggleTheme } = useTheme();
-  const [isAutoRequesting, setIsAutoRequesting] = useState(false);
-  const autoRequestRef = useRef<NodeJS.Timeout | null>(null);
+  const [isReceiving, setIsReceiving] = useState(false);
   
   const {
     measurements,
@@ -44,70 +41,42 @@ const Index = () => {
     disconnect,
     sendCommand,
     simulateData,
+    liveReading: btLiveReading,
   } = useBluetooth(handleIncomingData);
 
-  // Cleanup interval on unmount
+  // Track when we're receiving data from ESP32
   useEffect(() => {
-    return () => {
-      if (autoRequestRef.current) {
-        clearInterval(autoRequestRef.current);
-      }
-    };
-  }, []);
-
-  // Start automatic NEXT requests every 1.5s
-  const startAutoRequest = useCallback(() => {
-    if (autoRequestRef.current) {
-      clearInterval(autoRequestRef.current);
+    if (btLiveReading) {
+      setIsReceiving(true);
     }
+  }, [btLiveReading]);
 
-    setIsAutoRequesting(true);
-
-    // Send first NEXT immediately
-    sendCommand('NEXT');
-
-    // Then continue every 1.5s
-    autoRequestRef.current = setInterval(() => {
-      sendCommand('NEXT');
-    }, AUTO_REQUEST_INTERVAL);
-  }, [sendCommand]);
-
-  // Stop automatic requests
-  const stopAutoRequest = useCallback(() => {
-    if (autoRequestRef.current) {
-      clearInterval(autoRequestRef.current);
-      autoRequestRef.current = null;
-    }
-    setIsAutoRequesting(false);
-  }, []);
-
-  // START button: begin auto-requesting
+  // START button: just mark as receiving (ESP32 sends data automatically)
   const handleStart = useCallback(() => {
     if (isConnected) {
-      startAutoRequest();
+      setIsReceiving(true);
     }
-  }, [isConnected, startAutoRequest]);
+  }, [isConnected]);
 
-  // SUIVANTE (Next) button: record current reading and continue
+  // SUIVANTE (Next) button: record current reading
   const handleNext = useCallback(() => {
     if (liveReading) {
       recordCurrentReading();
-      // Auto-request continues for next measurement point
     }
   }, [liveReading, recordCurrentReading]);
 
-  // REPEAT button: restart auto-requesting if stopped
+  // REPEAT button: resume receiving display
   const handleRepeat = useCallback(() => {
-    if (isConnected && !isAutoRequesting) {
-      startAutoRequest();
+    if (isConnected && !isReceiving) {
+      setIsReceiving(true);
     }
-  }, [isConnected, isAutoRequesting, startAutoRequest]);
+  }, [isConnected, isReceiving]);
 
-  // STOP button: stop auto-requesting
+  // STOP button: stop receiving display
   const handleStop = useCallback(() => {
-    stopAutoRequest();
+    setIsReceiving(false);
     sendCommand('STOP');
-  }, [stopAutoRequest, sendCommand]);
+  }, [sendCommand]);
 
   // Simulate test data for manual testing without ESP32
   const handleSimulate = useCallback(() => {
@@ -190,14 +159,14 @@ const Index = () => {
         </Card>
 
         {/* Live Reading */}
-        <LiveReading liveReading={liveReading} isAutoRequesting={isAutoRequesting} />
+        <LiveReading liveReading={liveReading} isAutoRequesting={isReceiving} />
 
         {/* Controls */}
         <Card>
           <CardContent className="pt-6">
             <MeasurementControls
               isConnected={isConnected}
-              isAutoRequesting={isAutoRequesting}
+              isAutoRequesting={isReceiving}
               hasLiveReading={!!liveReading}
               currentIndex={currentIndex}
               totalMeasurements={measurements.length}
